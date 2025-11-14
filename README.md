@@ -1,0 +1,4 @@
+This project runs a real-time face recognition loop that captures frames from a camera, detects faces with Mediapipe’s lightweight detector, crops each region, and feeds it through a SigLIP vision encoder to obtain normalized embeddings. Those embeddings are matched against a tiny SQLite-backed database that stores previously saved faces, and the UI overlays bounding boxes, match confidences, and shortcuts to save, list, or delete records while the app is running.
+
+The code is structured around a `FaceRecognitionApp` wrapper that wires together the camera, detector, embedder, and database, plus utility helpers for region extraction and ROI management. All parameters such as detection thresholds, padding, detector stride, and display settings are grouped inside `FaceRecognitionSettings`, so behavior can be tuned without touching the main loop, and the embeddings module encapsulates loading and running the SigLIP processor/model on either CPU or CUDA when available.
+
