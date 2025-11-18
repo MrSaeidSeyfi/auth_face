@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import secrets
+import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -19,25 +21,26 @@ class DetectionResult:
     roi: np.ndarray
     similarity: float
     bbox: Tuple[int, int, int, int]
+    score: float
+
+
+@dataclass
+class Session:
+    token: str
+    name: str
+    issued_at: float
 
 
 @dataclass
 class FaceRecognitionSettings:
     threshold: float = 0.85
-    camera_index: int = 0
     max_faces: int = 3
     detection_confidence: float = 0.5
-    display_window: str = "Face Recognition"
     padding: int = 32
-    detector_stride: int = 2
     nms_threshold: float = 0.3
 
 
 class FaceRecognitionApp:
-    """
-    High-level orchestration of the face recognition pipeline.
-    """
-
     def __init__(
         self,
         db: Optional[FaceDB] = None,
@@ -47,89 +50,98 @@ class FaceRecognitionApp:
         self.db = db or FaceDB()
         self.embedder = embedder or SigLIPEmbedder()
         self.settings = settings or FaceRecognitionSettings()
-        self.capture = cv2.VideoCapture(self.settings.camera_index)
         self.detector = mp.solutions.face_detection.FaceDetection(
             model_selection=1,
             min_detection_confidence=self.settings.detection_confidence,
         )
-        self._faces: Dict[Tuple[int, int, int, int], DetectionResult] = {}
-        self._frame_count = 0
-        self._last_boxes: List[Tuple[Tuple[int, int, int, int], float]] = []
+        self.sessions: Dict[str, Session] = {}
 
-    def run(self) -> None:
-        print("s=save | l=list | d=delete | +/-=threshold | q=quit")
-        while self.capture.isOpened():
-            ret, frame = self.capture.read()
-            if not ret:
-                break
-
-            self._frame_count += 1
-            self._process_frame(frame)
-            self._overlay_detections(frame)
-            cv2.putText(
-                frame,
-                f"T:{self.settings.threshold:.2f} DB:{len(self.db.cache)}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2,
-            )
-            cv2.imshow(self.settings.display_window, frame)
-
-            key = cv2.waitKey(1) & 0xFF
-            if self._handle_input(key):
-                break
-
-        self.stop()
-
-    def stop(self) -> None:
-        self.capture.release()
-        cv2.destroyAllWindows()
+    def close(self) -> None:
         self.detector.close()
         self.db.close()
 
-    def _handle_input(self, key: int) -> bool:
-        if key in (27, ord("q")):
-            return True
-        if key == ord("s"):
-            self._save_new_face()
-        elif key == ord("l"):
-            self._print_db_records()
-        elif key == ord("d"):
-            self._delete_record()
-        elif key == ord("+"):
-            self.settings.threshold = min(0.95, self.settings.threshold + 0.05)
-            print(f"T:{self.settings.threshold:.2f}")
-        elif key == ord("-"):
-            self.settings.threshold = max(0.50, self.settings.threshold - 0.05)
-            print(f"T:{self.settings.threshold:.2f}")
-        return False
+    def authenticate(self, frame: np.ndarray, issue_session: bool = False) -> Tuple[Optional[DetectionResult], Optional[str]]:
+        result = self.match(frame)
+        if not result:
+            return None, None
+        token = None
+        if issue_session and result.label != "Unknown":
+            token = self._create_session(result.label)
+        return result, token
 
-    def _process_frame(self, frame: np.ndarray) -> None:
-        if self._frame_count % self.settings.detector_stride == 0 or not self._last_boxes:
-            self._last_boxes = self._detect_faces(frame)
-        if not self._last_boxes:
-            return
+    def match(self, frame: np.ndarray) -> Optional[DetectionResult]:
+        detections = self._detect_faces(frame)
+        if not detections:
+            return None
+        results = self._build_results(frame, detections)
+        if not results:
+            return None
+        results.sort(key=lambda item: (item.label != "Unknown", item.similarity, item.score), reverse=True)
+        return results[0]
 
-        self._faces.clear()
-        for bbox, score in self._last_boxes:
-            roi, packed_bbox = extract_roi(frame, bbox)
+    def enroll(self, name: str, frame: np.ndarray) -> DetectionResult:
+        name = name.strip()
+        if not name:
+            raise ValueError("Name required")
+        if self.db.name_exists(name):
+            raise ValueError("Name already exists")
+        detections = self._detect_faces(frame)
+        if not detections:
+            raise ValueError("No face detected")
+        results = self._build_results(frame, detections)
+        if not results:
+            raise ValueError("No face detected")
+        target = max(results, key=lambda item: item.score)
+        _, existing_name, duplicate_score = self.db.best_match(target.embedding)
+        if duplicate_score >= 0.95 and existing_name:
+            raise ValueError(f"Face already enrolled as {existing_name}")
+        self.db.add(name, target.embedding, target.roi)
+        return DetectionResult(
+            label=name,
+            embedding=target.embedding,
+            roi=target.roi,
+            similarity=1.0,
+            bbox=target.bbox,
+            score=target.score,
+        )
+
+    def delete_face(self, face_id: int) -> None:
+        self.db.delete(face_id)
+
+    def list_faces(self):
+        return self.db.list()
+
+    def validate_session(self, token: str) -> Optional[Session]:
+        return self.sessions.get(token)
+
+    def logout(self, token: str) -> bool:
+        return self.sessions.pop(token, None) is not None
+
+    def _create_session(self, name: str) -> str:
+        token = secrets.token_urlsafe(32)
+        self.sessions[token] = Session(token=token, name=name, issued_at=time.time())
+        return token
+
+    def _build_results(self, frame: np.ndarray, detections: List[Tuple[Tuple[int, int, int, int], float]]) -> List[DetectionResult]:
+        results: List[DetectionResult] = []
+        for bbox, score in detections:
+            roi, rect = extract_roi(frame, bbox)
             if roi.size == 0 or score < self.settings.detection_confidence:
                 continue
-
             embedding = self.embedder.embed(roi)
             name, similarity = self.db.match(embedding, self.settings.threshold)
-            top, right, bottom, left = packed_bbox[1], packed_bbox[2], packed_bbox[3], packed_bbox[0]
-            rect = (top, right, bottom, left)
             label = name or "Unknown"
-            self._faces[rect] = DetectionResult(
-                label=label,
-                embedding=embedding,
-                roi=roi,
-                similarity=similarity,
-                bbox=rect,
+            results.append(
+                DetectionResult(
+                    label=label,
+                    embedding=embedding,
+                    roi=roi,
+                    similarity=similarity,
+                    bbox=rect,
+                    score=score,
+                )
             )
+        return results
 
     def _detect_faces(self, frame: np.ndarray) -> List[Tuple[Tuple[int, int, int, int], float]]:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -182,49 +194,3 @@ class FaceRecognitionApp:
         area_b = max(0, bx2 - bx1) * max(0, by2 - by1)
         union = area_a + area_b - inter_area
         return inter_area / union if union else 0.0
-
-    def _overlay_detections(self, frame: np.ndarray) -> None:
-        for (top, right, bottom, left), detection in self._faces.items():
-            color = (0, 255, 0) if detection.label != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
-
-            if detection.label != "Unknown":
-                text = f"{detection.label} ({detection.similarity:.2f})"
-            else:
-                text = "Unknown"
-
-            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_DUPLEX, 0.6, 1)[0]
-            cv2.rectangle(frame, (left, bottom - 35), (left + text_size[0] + 12, bottom), color, -1)
-            cv2.putText(
-                frame,
-                text,
-                (left + 6, bottom - 10),
-                cv2.FONT_HERSHEY_DUPLEX,
-                0.6,
-                (255, 255, 255),
-                1,
-            )
-
-    def _save_new_face(self) -> None:
-        unknown_face = next((face for face in self._faces.values() if face.label == "Unknown"), None)
-        if not unknown_face:
-            return
-
-        name = input("Name: ").strip()
-        if name:
-            self.db.add(name, unknown_face.embedding, unknown_face.roi)
-
-    def _print_db_records(self) -> None:
-        faces = self.db.list()
-        print(f"\n{'=' * 60}\nFACES ({len(self.db.cache)})\n{'=' * 60}")
-        for face in faces:
-            print(f"ID:{face.id:3d} | {face.name:20s} | {face.created_at}")
-        print("=" * 60)
-
-    def _delete_record(self) -> None:
-        try:
-            face_id = int(input("ID: "))
-        except ValueError:
-            return
-        self.db.delete(face_id)
-

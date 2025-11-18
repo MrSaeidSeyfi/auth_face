@@ -1,0 +1,19 @@
+{
+  "name": "face-auth-ui",
+  "version": "0.1.0",
+  "description": "Minimal UI for the FaceAuth API",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "onvif": "^0.6.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
+

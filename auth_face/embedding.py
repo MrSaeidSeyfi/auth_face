@@ -8,25 +8,12 @@ from transformers import AutoModel, AutoProcessor
 
 
 class SigLIPEmbedder:
-    """
-    Wrapper around the SigLIP vision encoder for generating normalized image embeddings.
-    """
-
     def __init__(self, model_name: str = "google/siglip-base-patch16-224") -> None:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.processor = AutoProcessor.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name).to(self.device).eval()
 
     def embed(self, image: Union[np.ndarray, Image.Image]) -> np.ndarray:
-        """
-        Generate a normalized embedding for the supplied image.
-
-        Args:
-            image: Either a BGR numpy array or a PIL image.
-
-        Returns:
-            Normalized numpy embedding vector.
-        """
         pil_image = self._ensure_pil(image)
         inputs = {
             key: value.to(self.device)

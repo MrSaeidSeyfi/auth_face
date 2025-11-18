@@ -1,0 +1,128 @@
+:root {
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #1f2933;
+  background: #f4f6f8;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: #f4f6f8;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: 0.25rem 0 0;
+  color: #4c5663;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.app-header nav button {
+  background: #475569;
+  border-color: #475569;
+}
+
+.app-header nav button.active {
+  background: #0f172a;
+  border-color: #0f172a;
+}
+
+section {
+  background: #fff;
+  border: 1px solid #d6d9df;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+label {
+  display: block;
+  font-size: 0.9rem;
+  color: #4c5663;
+  margin-bottom: 0.35rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+select,
+input,
+button {
+  font-size: 0.95rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #c4c9d3;
+  border-radius: 4px;
+  background: #fff;
+  flex: none;
+}
+
+button {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #14379c;
+}
+
+[data-panel] {
+  transition: opacity 0.2s ease;
+}
+
+.hidden {
+  display: none;
+}
+
+#login-preview,
+#manage-preview {
+  width: 100%;
+  max-height: 320px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+#snapshot {
+  display: none;
+}
+
+pre {
+  margin: 0;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  max-height: 180px;
+  overflow: auto;
+  background: #f4f6f8;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+

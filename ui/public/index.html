@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Face Auth</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="app-header">
+        <div>
+          <h1>Face Auth</h1>
+          <p>Analyze faces for login or manage enrolled users.</p>
+        </div>
+        <nav>
+          <button class="active" data-panel-target="login-panel">Login</button>
+          <button data-panel-target="manage-panel">Management</button>
+        </nav>
+      </header>
+      <section class="panel">
+        <label for="camera-select">Camera</label>
+        <div class="row">
+          <select id="camera-select"></select>
+          <button id="refresh-cameras">Refresh</button>
+          <button id="scan-host">Scan</button>
+        </div>
+        <pre id="camera-list"></pre>
+      </section>
+      <section id="login-panel" class="panel active" data-panel>
+        <h2>Login</h2>
+        <video id="login-preview" autoplay playsinline></video>
+        <div class="row">
+          <button id="login-capture">Capture</button>
+          <button id="login">Login</button>
+          <button id="logout">Logout</button>
+        </div>
+        <pre id="login-status"></pre>
+        <pre id="session-info"></pre>
+      </section>
+      <section id="manage-panel" class="panel hidden" data-panel>
+        <h2>Management</h2>
+        <video id="manage-preview" autoplay playsinline></video>
+        <div class="row">
+          <input id="enroll-name" placeholder="Name" />
+          <button id="manage-capture">Capture</button>
+          <button id="enroll">Enroll</button>
+          <button id="refresh-faces">Faces</button>
+        </div>
+        <pre id="manage-status"></pre>
+        <pre id="face-list"></pre>
+      </section>
+      <canvas id="snapshot" width="224" height="224"></canvas>
+    </main>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
+
